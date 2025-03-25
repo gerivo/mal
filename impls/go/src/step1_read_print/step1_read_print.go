@@ -1,66 +1,41 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
-	"strings"
+	"os"
 )
 
-import (
-	"mal/src/printer"
-	"mal/src/reader"
-	"mal/src/readline"
-	. "mal/src/types"
-)
-
-// read
-func READ(str string) (MalType, error) {
-	return reader.Read_str(str)
+func READ(input string) string {
+	return input
 }
 
-// eval
-func EVAL(ast MalType, env string) (MalType, error) {
-	return ast, nil
+func EVAL(input string) string {
+	return input
 }
 
-// print
-func PRINT(exp MalType) (string, error) {
-	return printer.Pr_str(exp, true), nil
+func PRINT(input string) string {
+	return input
 }
 
-// repl
-func rep(str string) (MalType, error) {
-	var exp MalType
-	var res string
-	var e error
-	if exp, e = READ(str); e != nil {
-		return nil, e
-	}
-	if exp, e = EVAL(exp, ""); e != nil {
-		return nil, e
-	}
-	if res, e = PRINT(exp); e != nil {
-		return nil, e
-	}
-	return res, nil
+func rep(input string) string {
+	output := READ(input)
+	output = EVAL(output)
+	return PRINT(output)
 }
 
 func main() {
-	// repl loop
+	reader := bufio.NewReader(os.Stdin)
+
 	for {
-		text, err := readline.Readline("user> ")
-		text = strings.TrimRight(text, "\n")
+		fmt.Print("user> ")
+		input, err := reader.ReadString('\n')
+
 		if err != nil {
 			return
 		}
-		var out MalType
-		var e error
-		if out, e = rep(text); e != nil {
-			if e.Error() == "<empty line>" {
-				continue
-			}
-			fmt.Printf("Error: %v\n", e)
-			continue
-		}
-		fmt.Printf("%v\n", out)
+
+		output := rep(input)
+		fmt.Print(output)
 	}
 }

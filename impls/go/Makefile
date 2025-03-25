@@ -1,2 +1,2 @@
 step%:
-	go build $@.go
+	go build -o ./src/$@/main ./src/$@/$@.go

@@ -6,16 +6,16 @@ import (
 	"os"
 )
 
-func READ(input string) string {
+func READ(input string) MalTyper {
+	return read_str(input)
+}
+
+func EVAL(input MalTyper) MalTyper {
 	return input
 }
 
-func EVAL(input string) string {
-	return input
-}
-
-func PRINT(input string) string {
-	return input
+func PRINT(input MalTyper) string {
+	return pr_str(input)
 }
 
 func rep(input string) string {
@@ -36,6 +36,6 @@ func main() {
 		}
 
 		output := rep(input)
-		fmt.Print(output)
+		fmt.Println(output)
 	}
 }

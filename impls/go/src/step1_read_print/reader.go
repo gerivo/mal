@@ -3,6 +3,7 @@ package main
 import (
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 type reader struct {
@@ -10,78 +11,71 @@ type reader struct {
 	position int
 }
 
-func (r reader) in_bounds() bool {
+func (r reader) InBounds() bool {
 	return r.position < len(r.tokens)
 }
 
-func (r reader) peek() string {
+func (r reader) Peek() string {
 	return r.tokens[r.position]
 }
 
-func (r reader) next() string {
-	before := r.position
+func (r *reader) Advance() reader {
 	r.position = r.position + 1
-
-	return r.tokens[before]
+	return *r
 }
 
-func read_str(input string) []any {
+func read_str(input string) MalTyper {
 	return read_form(tokenize(input))
 }
 
-func tokenize(input string) reader {
-	r, _ := regexp.Compile("[\\s,]*(~@|[\\[\\]{}()'`~^@]|\"(?:\\.|[^\\\"])*\"?|;.*|[^\\s\\[\\]{}('\"`,;)]*)")
+func tokenize(input string) *reader {
+	r := regexp.MustCompile(`[\s,]*(~@|[\[\]{}()'` + "`" + `~^@]|"(?:\\.|[^\\"])*"?|;.*|[^\s\[\]{}('"` + "`" + `,;)]*)`)
 
-	return reader{r.FindAllString(input, -1), 0}
+	tokens := r.FindAllString(input, -1)
+	for i := range tokens {
+		tokens[i] = strings.TrimSpace(tokens[i])
+	}
+
+	x := new(reader)
+	x.tokens = tokens
+	x.position = 0
+	return x
 }
 
-func read_form(r reader) []any {
-	first := r.peek()
-	var ret []any
+func read_form(r *reader) MalTyper {
+	first := r.Peek()
 
-	if first[0] == '(' {
-		ret = append(ret, []any{read_list(r)})
+	if first == "(" {
+		list := read_list(r)
+		return list
 	} else {
-		ret = append(ret, read_atom(r))
+		return read_atom(r)
 	}
-
-	return ret
 }
 
-func read_list(r reader) []any {
-	first := r.next()
-	var ret []any
+func read_list(r *reader) MalTyper {
+	r.Advance()
+	first := r.Peek()
+	list := new(MalList)
 
-	for first[0] != ')' && r.in_bounds() {
-		ret = append(ret, read_form(r))
-		first = r.next()
+	for first != ")" && r.InBounds() {
+		list.Data = append(list.Data, read_form(r))
+
+		r.Advance()
+		first = r.Peek()
 	}
 
-	return ret
+	return list
 }
 
-func read_atom(r reader) []any {
-	first := r.peek()
-	var ret []any
+func read_atom(r *reader) MalTyper {
+	first := r.Peek() // first value always the read atom
 
-	value_int, is := strconv.ParseInt(first, 10, 0)
-	symbol := true
-
-	if is != nil {
-		ret = append(ret, value_int)
-		symbol = false
+	value, is := strconv.ParseInt(first, 10, 0)
+	if is == nil {
+		return MalInt{int(value)}
 	}
 
-	value_bool, is := strconv.ParseBool(first)
-
-	if is != nil {
-		ret = append(ret, value_bool)
-		symbol = false
-	}
-
-	if symbol {
-		ret = append(ret, first)
-	}
-
-	return ret
+	// TODO: MalTrue and MalFalse (they are different)
+	return MalSymbol{first}
 }

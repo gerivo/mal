@@ -1,9 +1,9 @@
 package main
 
 import (
+	"errors"
 	"regexp"
 	"strconv"
-	"strings"
 )
 
 type reader struct {
@@ -19,53 +19,66 @@ func (r reader) Peek() string {
 	return r.tokens[r.position]
 }
 
+func (r *reader) Next() (string, error) {
+	r.Advance()
+
+	if r.InBounds() {
+		return r.Peek(), nil
+	} else {
+		return "", errors.New("unbalanced")
+	}
+}
+
 func (r *reader) Advance() reader {
 	r.position = r.position + 1
 	return *r
 }
 
-func read_str(input string) MalTyper {
+func read_str(input string) (MalTyper, error) {
 	return read_form(tokenize(input))
 }
 
 func tokenize(input string) *reader {
 	r := regexp.MustCompile(`[\s,]*(~@|[\[\]{}()'` + "`" + `~^@]|"(?:\\.|[^\\"])*"?|;.*|[^\s\[\]{}('"` + "`" + `,;)]*)`)
 
-	tokens := r.FindAllString(input, -1)
-	for i := range tokens {
-		tokens[i] = strings.TrimSpace(tokens[i])
-	}
+	matches := r.FindAllStringSubmatch(input, -1)
 
 	x := new(reader)
-	x.tokens = tokens
+	for _, captures := range matches {
+		x.tokens = append(x.tokens, captures[1]) // the tokens are in the second capture group
+	}
+
 	x.position = 0
 	return x
 }
 
-func read_form(r *reader) MalTyper {
+func read_form(r *reader) (MalTyper, error) {
 	first := r.Peek()
 
 	if first == "(" {
-		list := read_list(r)
-		return list
+		list, ok := read_list(r)
+
+		return list, ok
 	} else {
-		return read_atom(r)
+		return read_atom(r), nil
 	}
 }
 
-func read_list(r *reader) MalTyper {
-	r.Advance()
-	first := r.Peek()
+func read_list(r *reader) (MalTyper, error) {
+	first, ok := r.Next()
 	list := new(MalList)
 
-	for first != ")" && r.InBounds() {
-		list.Data = append(list.Data, read_form(r))
+	for first != ")" && ok == nil {
+		app, err := read_form(r)
+		if err != nil {
+			return list, nil
+		}
 
-		r.Advance()
-		first = r.Peek()
+		list.Data = append(list.Data, app)
+		first, ok = r.Next()
 	}
 
-	return list
+	return list, ok
 }
 
 func read_atom(r *reader) MalTyper {

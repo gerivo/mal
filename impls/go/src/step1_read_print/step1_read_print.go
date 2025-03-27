@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-func READ(input string) MalTyper {
+func READ(input string) (MalTyper, error) {
 	return read_str(input)
 }
 
@@ -19,7 +19,11 @@ func PRINT(input MalTyper) string {
 }
 
 func rep(input string) string {
-	output := READ(input)
+	output, error := READ(input)
+	if error != nil {
+		return error.Error()
+	}
+
 	output = EVAL(output)
 	return PRINT(output)
 }

@@ -13,7 +13,7 @@ type reader struct {
 }
 
 func (r reader) InBounds() bool {
-	return r.position < len(r.tokens)
+	return r.position < len(r.tokens)-1 // last token always an empty string
 }
 
 func (r reader) Peek() string {
@@ -54,57 +54,111 @@ func tokenize(input string, readably bool) *reader {
 	return x
 }
 
-type listContext struct {
-	wrappers [2]string
-	onlyOne  bool
+func recursive_read(r *reader, listData []MalTyper) ([]MalTyper, error) {
+	app, err := read_form(r)
+
+	if err == nil {
+		return append(listData, app), nil
+	} else {
+		return listData, err
+	}
+}
+
+type listType interface {
+	Read(r *reader) (MalTyper, error)
+}
+
+type normal struct {
+	Wraps [2]string
+}
+
+func (nl normal) Read(r *reader) (MalTyper, error) {
+	first, err := r.Next()
+	list := new(MalList)
+	list.Wraps = nl.Wraps
+
+	for first != list.Wraps[1] && err == nil {
+		list.Data, err = recursive_read(r, list.Data)
+		if err != nil {
+			return list, err
+		}
+
+		first, err = r.Next()
+	}
+
+	return list, err
+}
+
+type special struct {
+	Wraps [2]string
+}
+
+func (sl special) Read(r *reader) (MalTyper, error) {
+	_, err := r.Next()
+	list := new(MalList)
+	list.Wraps = sl.Wraps
+
+	list.Data, err = recursive_read(r, list.Data)
+	if err != nil {
+		return list, err
+	}
+
+	return list, err
+}
+
+type meta struct {
+	Wraps [2]string
+}
+
+func (ml meta) Read(r *reader) (MalTyper, error) {
+	_, err := r.Next()
+	list := new(MalList)
+	list.Wraps = ml.Wraps
+
+	last_app, err := read_form(r)
+	if err != nil {
+		return list, err // only should throw error if there isnt a value after the meta call or
+	}
+
+	_, err = r.Next()
+	for err == nil {
+		list.Data, err = recursive_read(r, list.Data)
+		if err != nil {
+			return list, err // the recursive call fails
+		}
+
+		_, err = r.Next()
+	}
+
+	list.Data = append(list.Data, last_app)
+	return list, nil
 }
 
 func read_form(r *reader) (MalTyper, error) {
 	first := r.Peek()
 
 	// this map directs the token that starts a list to its wrappers
-	starter_to_wrapper := map[string]listContext{
-		"'":  {[2]string{"(quote ", ")"}, true},
-		"~@": {[2]string{"(splice-unquote ", ")"}, true},
-		"~":  {[2]string{"(unquote ", ")"}, true},
-		"`":  {[2]string{"(quasiquote ", ")"}, true},
-		"@":  {[2]string{"(deref ", ")"}, true},
-		"^":  {[2]string{"(with-meta ", ")"}, true},
+	starter_to_wrapper := map[string]listType{
+		"'":  special{[2]string{"(quote ", ")"}},
+		"~@": special{[2]string{"(splice-unquote ", ")"}},
+		"~":  special{[2]string{"(unquote ", ")"}},
+		"`":  special{[2]string{"(quasiquote ", ")"}},
+		"@":  special{[2]string{"(deref ", ")"}},
 
-		"(": {[2]string{"(", ")"}, false},
-		"{": {[2]string{"{", "}"}, false},
-		"[": {[2]string{"[", "]"}, false},
+		"^": meta{[2]string{"(with-meta ", ")"}},
+
+		"(": normal{[2]string{"(", ")"}},
+		"{": normal{[2]string{"{", "}"}},
+		"[": normal{[2]string{"[", "]"}},
 	}
 
-	for starter, listParams := range starter_to_wrapper {
+	for starter, list := range starter_to_wrapper {
 		if first == starter {
-			return read_list(r, listParams)
+			return list.Read(r)
 		}
 	}
 
 	return read_atom(r)
-}
-
-func read_list(r *reader, params listContext) (MalTyper, error) {
-	first, ok := r.Next()
-	list := new(MalList)
-	list.Wraps = params.wrappers
-
-	for first != list.Wraps[1] && ok == nil {
-		app, err := read_form(r)
-		if err != nil {
-			return list, err
-		}
-
-		list.Data = append(list.Data, app)
-		if params.onlyOne {
-			break
-		} else {
-			first, ok = r.Next()
-		}
-	}
-
-	return list, ok
 }
 
 func read_atom(r *reader) (MalTyper, error) {

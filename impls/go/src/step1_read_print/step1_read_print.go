@@ -7,7 +7,7 @@ import (
 )
 
 func READ(input string) (MalTyper, error) {
-	return read_str(input)
+	return read_str(input, true)
 }
 
 func EVAL(input MalTyper) MalTyper {

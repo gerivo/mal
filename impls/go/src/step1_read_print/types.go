@@ -11,7 +11,8 @@ type MalTyper interface {
 }
 
 type MalList struct {
-	Data []MalTyper
+	Data  []MalTyper
+	Wraps [2]string
 }
 
 func (ml MalList) GetValue() any {
@@ -24,7 +25,7 @@ func (ml MalList) String() string {
 		str = append(str, value.String())
 	}
 
-	return "(" + strings.Join(str, " ") + ")"
+	return ml.Wraps[0] + strings.Join(str, " ") + ml.Wraps[1]
 }
 
 type MalInt struct {
@@ -48,5 +49,18 @@ func (ml MalSymbol) GetValue() any {
 }
 
 func (ml MalSymbol) String() string {
+	return ml.symbol
+}
+
+type MalString struct {
+	symbol   string
+	readably bool
+}
+
+func (ml MalString) GetValue() any {
+	return ml.symbol
+}
+
+func (ml MalString) String() string {
 	return ml.symbol
 }
